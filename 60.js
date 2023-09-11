@@ -168,3 +168,71 @@ function getRandomValueFromArray(arr) {
   const randomIndex = Math.floor(Math.random() * arr.length);
   return arr[randomIndex];
 }
+
+
+async function findInterestingSectionsInTranscript(transcript) {
+  const sections = splitTranscriptIntoSections(transcript, 7 * 60); // Split into 7-minute sections
+  const responses = [];
+
+  for (let i = 0; i < sections.length; i++) {
+    const section = sections[i];
+    const response = await analyzeTranscriptSection(section);
+
+    if (response && response.data.choices && response.data.choices.length > 0) {
+      const timestamp = section.timestamp;
+      const answer = response.data.choices[0].text.trim();
+      responses.push({ timestamp, answer });
+    }
+  }
+
+  return responses;
+}
+
+function splitTranscriptIntoSections(transcript, sectionDurationInSeconds) {
+  const lines = transcript.split('\n');
+  const sections = [];
+  let currentSection = { timestamp: '', text: '' };
+
+  for (let i = 0; i < lines.length; i++) {
+    const line = lines[i];
+    if (line.match(/^\d{2}:\d{2}:\d{2}:\d{2}\s+-/)) {
+      if (currentSection.text !== '') {
+        sections.push(currentSection);
+        currentSection = { timestamp: '', text: '' };
+      }
+      currentSection.timestamp = line;
+    } else {
+      currentSection.text += line + '\n';
+    }
+  }
+
+  if (currentSection.text !== '') {
+    sections.push(currentSection);
+  }
+
+  return sections;
+}
+
+async function analyzeTranscriptSection(section) {
+  try {
+    const apiUrl = 'https://api.openai.com/v1/engines/text-davinci-003/completions';
+    const response = await axios.post(
+      apiUrl,
+      {
+        prompt: `Find the interesting parts of this transcript:\n\n${section.text}`,
+        max_tokens: 150, // Adjust based on your token limit
+      },
+      {
+        headers: {
+          'Authorization': 'Bearer YOUR_OPENAI_API_KEY',
+          'Content-Type': 'application/json',
+        },
+      }
+    );
+
+    return response;
+  } catch (error) {
+    console.error('Error analyzing transcript section:', error);
+    return null;
+  }
+}
