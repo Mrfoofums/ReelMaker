@@ -6,17 +6,12 @@ const axios = require('axios');
 
 const apiKey = process.env.API_KEY;
 
-function cutVideoIntoSegments(sourceFilePath, titles) {
+function cutVideoIntoSegments(sourceFilePath) {
+  return new Promise((resolve, reject) => {
   const fileName = path.basename(sourceFilePath, path.extname(sourceFilePath));
   // Create the output directory
   const outputDirectory = path.join(path.dirname(sourceFilePath), `output_${fileName}`);
   fs.mkdirSync(outputDirectory, { recursive: true });
-
-  const sanitizedTitles = titles.map((title, index) => {
-    // Remove characters that are not allowed in filenames
-    const sanitizedTitle = title.replace(/[/\\?%*:|"<>]/g, '-');
-    return `${index + 1}.mp4`;
-  });
 
   // Run FFmpeg to cut the video into segments
   const ffmpegArgs = [
@@ -34,7 +29,7 @@ function cutVideoIntoSegments(sourceFilePath, titles) {
     '1',
     '-segment_format',
     'mp4',
-    path.join(outputDirectory, getRandomValueFromArray(sanitizedTitles))
+    path.join(outputDirectory, `${fileName}_%03d.mp4`)
   ];
 
   const ffmpeg = spawn('ffmpeg', ffmpegArgs);
@@ -50,27 +45,66 @@ function cutVideoIntoSegments(sourceFilePath, titles) {
   ffmpeg.on('close', (code) => {
     if (code === 0) {
       console.log('Video segmentation complete.');
+      resolve();
     } else {
       console.error('Video segmentation failed.');
+      reject(new Error('Video segmentation failed'));
     }
   });
+});
 }
 
 // Example usage: node cut-video.js /path/to/video.mp4
 const sourceFilePath = process.argv[2];
+const fileName = path.basename(sourceFilePath, path.extname(sourceFilePath));
+const outputDirectory = path.join(path.dirname(sourceFilePath), `output_${fileName}`);
 const prompt = process.argv[3];
 
 async function main() {
   try {
     let titles = await generateVideoTitles(prompt, 100); // Wait for titles to be generated
+    titles = titles.map((title, index) => {
+      // Remove characters that are not allowed in filenames
+      const sanitizedTitle = title.replace(/[/\\?%*:|"<>]/g, '-');
+      // Remove leading numbers and spaces
+      const cleanedTitle = sanitizedTitle.replace(/^\d+\.\s*/, '');
+      return `${cleanedTitle}`;
+    });
     // console.log(`Titles values are: ${titles}`);
-    cutVideoIntoSegments(sourceFilePath, titles);
+    await cutVideoIntoSegments(sourceFilePath, titles);
+    renameVideosInOutputDirectory(outputDirectory, titles)
   } catch (error) {
     console.error('Error:', error);
   }
 }
 
 main();
+
+function renameVideosInOutputDirectory(outputDirectory, titles) {
+  const files = fs.readdirSync(outputDirectory);
+  const videoFiles = files.filter((file) => file.endsWith('.mp4'));
+
+  if (videoFiles.length === 0) {
+    console.log('No video files found in the output directory.');
+    return;
+  }
+
+  console.log(`Found ${videoFiles.length} video files in the output directory.`);
+
+  for (let i = 0; i < videoFiles.length; i++) {
+    const oldFilePath = path.join(outputDirectory, videoFiles[i]);
+    const newTitle = titles[i % titles.length]; // Use titles sequentially, looping if necessary
+    const newFileName = `${i + 1}. ${newTitle}.mp4`;
+    const newFilePath = path.join(outputDirectory, newFileName);
+
+    fs.renameSync(oldFilePath, newFilePath);
+    console.log(`Renamed "${path.basename(oldFilePath)}" to "${newFileName}"`);
+  }
+
+  console.log('Video renaming complete.');
+}
+
+
 
 
 // TO DO
