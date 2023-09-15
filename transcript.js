@@ -1,16 +1,21 @@
 const axios = require('axios');
 require('dotenv').config()
 const fs = require('fs');
+
 async function findInterestingSectionsInTranscriptFromFile(filename) {
     try {
       const transcript = fs.readFileSync(filename, 'utf8');
-      const sections = splitTranscriptIntoSections(transcript, 7 * 60); // Split into 7-minute sections
+      const sections = splitTranscriptIntoSections(transcript, 2 * 60); // Split into sections based on input time interval
       const responses = [];
   
       for (let i = 0; i < sections.length; i++) {
         console.log(`Executing iteration ${i}`);
         const section = sections[i];
-        const response = await analyzeTranscriptSection(section);
+        console.log(`Timestamp ${section.timestamp} & Section:  ${section.text}`)
+        // const response = await analyzeTranscriptSection(section);
+        const response = {
+          data: choices = [1,2,3]
+        };
   
         if (response && response.data.choices && response.data.choices.length > 0) {
           const timestamp = section.timestamp;
@@ -34,12 +39,12 @@ async function findInterestingSectionsInTranscriptFromFile(filename) {
   
     for (let i = 0; i < lines.length; i++) {
       const line = lines[i].trim();
+      
+      //If the current line is a timestamp, process the timestamp
       if (line.match(/^\d{2}:\d{2}:\d{2}:\d{2}\s+-/)) {
-        if (currentSection.text !== '') {
-          sections.push(currentSection);
-          currentSection = { timestamp: '', text: '' };
-        }
-  
+        console.log(`The line that matched the regex ${line} `)
+        currentSection.timestamp = line;
+
         // Extract the timestamp in seconds
         const timestampParts = line.split(' ')[0].split(':').map(Number);
         const timestampInSeconds =
@@ -47,16 +52,19 @@ async function findInterestingSectionsInTranscriptFromFile(filename) {
           timestampParts[1] * 60 +
           timestampParts[2] +
           timestampParts[3] / 100;
-  
+        // console.log(`TimeStamp in Seconds:  ${timestampInSeconds}`)
+
         // Check if the current timestamp is more than 7 minutes ahead of the previous one
         if (timestampInSeconds - prevTimestampInSeconds > sectionDurationInSeconds) {
           sections.push(currentSection);
           currentSection = { timestamp: '', text: '' };
+          prevTimestampInSeconds = timestampInSeconds;
         }
   
-        currentSection.timestamp = line;
-        prevTimestampInSeconds = timestampInSeconds;
+        // currentSection.timestamp = line;
+        // prevTimestampInSeconds = timestampInSeconds;
       } else {
+        //Just add the line to the section
         currentSection.text += line + ' ';
       }
     }
